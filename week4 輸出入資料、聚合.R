@@ -1,7 +1,7 @@
 ## week4---資料輸出
 ##  政府資料庫 http://data.gov.tw/ , get some metadata(詮釋資料)
 
-setwd('D:/凱/生態資訊')
+setwd('D:/凱/生態資訊/git')
 library(data.table)
 library(curl) 
 
