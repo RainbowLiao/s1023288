@@ -10,43 +10,44 @@
 
 ##### 3.計算最冷月每日最低均溫
 
-# load all of the txt (non-finished)
+# load all of the txt (2016/10/22/ 11.30 am 終於成功!) 
+ # 參考stack overflow上的各種網友模組
 {
 library(data.table)
 library(stats)
+library(readr)  
 
-all_files <- list.files("D:/凱/生態資訊/data/raw/" , pattern = "auto_hr")
+# 選擇所有檔案資料夾,設定資料外觀( ,full.name 才能加入路徑)  
+  #注意!!! <讀取超久有當機可能>!!!
+all_files <- list.files("D:/凱/生態資訊/data/raw/" , pattern = "auto_hr", full.names = TRUE)
 
-substr(all_files,1,120)
+data_menu <- substr(all_files,1,120)
 
 read_data <-  function(x){
-  data_open_clean <- fread(x, skip = 74)
-  return(data_open_clean)
-}
-      
-for (i in all_files){
-  temp.data <- fread(i)
-  data <- data.table(rbind(data,temp.data))
+  for (i in all_files){
+    temp.data <- fread(i)
+    data <- data.table(rbind(data,temp.data))
+    data_open_clean <- fread(x, skip = 74)
+    return(data_open_clean)
+  }
 }      
 
-mylist <- lapply(all_files, read_data)
-mydata <- do.call('rbind',mylist)   
+file_list <- lapply(data_menu, fread, skip = 74, stringsAsFactors=FALSE, 
+                     na.strings = c('-9991','-9995','-9996','-9997','-9998','-9999'))
+
+mydata <- do.call('rbind',file_list)   
 
 }
+
+# <注意>!!!!! 成功之後不要view  "mydata" 檔案太大打開會爆機
 ---------------------
     
 
 ##  前置作業
 {
-library(data.table)
-library(stats)  
+
 setwd('D:/凱/生態資訊/git')
 
- 
-# 輸入資料 (tab 可顯示list 路徑)
-
-cwb <- fread('D:/凱/生態資訊/data/raw/200601_auto_hr.txt', skip=74 
-             , na.strings = c('-9991','-9995','-9996','-9997','-9998','-9999'))
 
 # 設定欄位名稱(colnames <- c(固定格式)
 #              setnames(目標,欄位,colnames)
@@ -54,25 +55,27 @@ cwb <- fread('D:/凱/生態資訊/data/raw/200601_auto_hr.txt', skip=74
 colnames <- c("stno", "yyyymmddhr","PS01", "TX01", "RH01","WD01","WD02", "PP01", 
               "SS01")
 
-setnames(cwb,1:9,colnames)
+setnames(mydata,1:9,colnames)
+
 
 # 時間格式化(strptime(目標,'格式'))
-# 建立新欄位 cwb[, timestamps:=as.POSIXct(strptime(yyyymmddhr,'%Y%m%d%H'))]
 
-strptime(cwb$yyyymmddhr,'%Y%m%d%H')
+strptime(mydata$yyyymmddhr,'%Y%m%d%H')
 
-cwb[,timestamp:=as.POSIXct(strptime(yyyymmddhr-1,'%Y%m%d%H'))]
-}
 
+## 建立新欄位 mydata[, timestamps:=as.POSIXct(strptime(yyyymmddhr,'%Y%m%d%H'))]
+## <注意>!!!!! mydata 檔案太大，先把C0M530抓出來才能做欄位新增
 ## 開始aggregate(表示式,資料集,函數) 
-{
+
   # 先抓出([ == ])目標測站'C0M530'資料，並整理時間標記(format.Date)去除hr
 
-C0M530 <- cwb[cwb$stno == 'C0M530']
+C0M530 <- mydata[mydata$stno == 'C0M530']
 
-format.Date(C0M530$timestamp, '%Y-%m-%d')
+C0M530[,timestamp:=as.POSIXct(strptime(yyyymmddhr-1,'%Y%m%d%H'))]
 
-C0M530[, date:= format.Date(timestamp, '%Y-%m-%d')]
+  format.Date(C0M530$timestamp, '%Y-%m-%d')
+
+  C0M530[, date:= format.Date(timestamp, '%Y-%m-%d')]
 
 
 # 設計funtion,計算mean(注意目前資料讀取為文字檔，需轉換成數值(as.numeric())，
@@ -86,12 +89,14 @@ mean_omit_na <- function(x){
 ## DEMO: aggregate(iris$Petal.Length, by = list(iris$Species), FUN = mean)
 }
 
-### a.2006年每日日均溫daliy tmper (DTM)
-{mean_DTM <- aggregate(as.numeric(C0M530$TX01), by = list(C0M530$date), 
+### 1.計算C0M530(奮起湖)從2006~2015十年的
+ ### a.每年每日日均溫daliy tmper (DTM)
+{
+mean_DTM <- aggregate(as.numeric(C0M530$TX01), by = list(C0M530$date), 
                       FUN = mean_omit_na)
 }
 
-### b.c.2006年每日最低溫、最高溫Daliy Max/ min tmper (DMaxT/DminT)
+ ### b.c.每年每日最低溫、最高溫Daliy Max/ min tmper (DMaxT/DminT)
 {# 寫funtion 判定最大最小值
 
 Max_T <- function(x){
@@ -110,7 +115,7 @@ DMaxT <- aggregate(C0M530$TX01, by = list(C0M530$date), FUN = Max_T)
 DminT <- aggregate(C0M530$TX01, by = list(C0M530$date), FUN = min_T)
 }
 
-### d.2006年1月均溫(month temper (MTM))
+ ### d.每年每月均溫(month temper (MTM))
 {
 # 新增欄位"month"
 
@@ -121,7 +126,7 @@ mean_MTM <- aggregate(as.numeric(C0M530$TX01), by = list(C0M530$month),
                       FUN = mean_omit_na)
 }
 
-### e.2006年1月累積降水(sum)
+ ### e.每年每月累積降水(sum)
 {
 # 新增funtion(sum)
 
@@ -137,6 +142,9 @@ sum_SMR <- aggregate(as.numeric(C0M530$PP01), by = list(C0M530$month),
                       FUN = sum_omit_na) 
 }
 
+#### 2.計算最暖月每日最高均溫
+
+##### 3.計算最冷月每日最低均溫@
 
 
   
